@@ -1,54 +1,47 @@
-# Talking Bat — Cricket AI Agent (Web App)
+# Talking Bat v2
 
-A ready-to-launch Streamlit app that shows **all international matches**:
-- 🔴 Live matches (status, quick score, open scorecard)
-- 📅 Fixtures (upcoming)
-- ✅ Results (recent completed)
-- 📋 Scorecards by match ID
+Mobile-friendly Streamlit app with emoji top navigation (🏏 📅 ✅ 📋), 30s auto-refresh on live/feeds,
+and a sticky footer: **“Powered by Talking Bat © 2025”**.
 
-Auto-refresh supported; data comes live from **CricketData**.
+## Structure
+```text
+v2/
+├─ app/
+│  ├─ Home.py
+│  ├─ Live.py
+│  ├─ Fixtures.py
+│  ├─ Results.py
+│  ├─ Scorecard.py
+│  └─ utils.py
+├─ .streamlit/
+│  └─ secrets_template.toml
+├─ requirements.txt
+└─ README.md
+```
 
----
+## Quick Start
 
-## 1) One-time Setup (Streamlit Cloud — easiest)
-
-1. Go to https://share.streamlit.io/ and sign in.
-2. Create a new app from this folder (upload to a GitHub repo or directly via "Deploy from a GitHub repo").
-3. In Streamlit Cloud, open **App → Settings → Secrets**, and paste the contents of `secrets_template.toml` into the secrets editor.
-   - It already contains your API key.
-
-4. Press **Deploy**. Your app will be live at a URL like:
-   `https://talkingbat-cricket-ai-agent.streamlit.app`
-
----
-
-## 2) Local Run (optional)
-
+1) **Install**
 ```bash
 pip install -r requirements.txt
+```
+
+2) **Secrets**  
+   Copy `.streamlit/secrets_template.toml` to `.streamlit/secrets.toml` and keep it private.
+   Update with your CricketData API key if needed.
+
+3) **Run**
+```bash
 streamlit run app/Home.py
 ```
 
-If running locally, you can set the API key as an environment variable:
+4) **Endpoints**  
+   In `app/utils.py` update `BASE` and the endpoint paths (`/v1/live`, `/v1/fixtures`, `/v1/results`, `/v1/scorecard/{id}`)
+   to match your actual CricketData provider. The app is coded to handle common response shapes.
 
-**Windows (PowerShell):**
-```powershell
-$env:CRICKETDATA_API_KEY="0d0e9880-a9c6-45a2-b622-792d04bf67a5"
-```
-
-**macOS/Linux:**
-```bash
-export CRICKETDATA_API_KEY="0d0e9880-a9c6-45a2-b622-792d04bf67a5"
-```
-
-Or use Streamlit secrets locally by creating a file `.streamlit/secrets.toml` and pasting the template.
-
----
-
-## 3) Notes & Next Steps
-
-- This MVP calls public endpoints directly from the browser session.
-- For subscriptions/payments and historical storage, we’ll add a backend & database later.
-- You can change branding in `app/Home.py` (title, logo, colors).
-
-Need help deploying? Ping me and I’ll walk you through it.
+## Notes
+- **Mobile-friendly**: CSS tweaks for smaller screens, responsive tables, compact cards.
+- **Emoji nav**: Four-pill top navigation (🏏 Home, 📅 Fixtures, ✅ Results, 📋 Scorecard).
+- **Auto-refresh**: Live, Fixtures, Results pages refresh every 30 seconds.
+- **Footer**: Sticky footer with the required text.
+- **Security**: Never commit your real `secrets.toml` to any repo. Keep it local or use Streamlit Cloud secrets.

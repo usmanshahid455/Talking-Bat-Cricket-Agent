@@ -1,3 +1,6 @@
-streamlit==1.39.0
-pandas
-requests
+streamlit>=1.36.0
+streamlit-autorefresh>=0.0.2
+requests>=2.32.0
+pandas>=2.2.0
+python-dateutil>=2.9.0.post0
+pytz>=2024.1
