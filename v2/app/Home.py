@@ -1,5 +1,6 @@
 import streamlit as st
-from app.utils import auto_refresh, header
+from v2.app.utils import auto_refresh, header
+
 
 st.set_page_config(page_title="Talking Bat", page_icon="🏏", layout="wide")
 auto_refresh()
