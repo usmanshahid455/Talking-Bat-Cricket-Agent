@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-
 def show_u19_analytics():
     # =======================================
     # ⚙️ PAGE SETTINGS
@@ -10,7 +9,7 @@ def show_u19_analytics():
     st.set_page_config(page_title="U-19 Analytics", page_icon="📊", layout="wide")
 
     # =======================================
-    # 🎨 STYLING (Talking Bat Theme)
+    # 🎨 TALKING BAT STYLE
     # =======================================
     st.markdown("""
         <style>
@@ -53,7 +52,7 @@ def show_u19_analytics():
     """, unsafe_allow_html=True)
 
     # =======================================
-    # 🧠 SESSION-BASED FILE STORAGE (prevents re-upload)
+    # 📁 FILE UPLOAD (Persist Session)
     # =======================================
     if "uploaded_data" not in st.session_state:
         st.session_state.uploaded_data = None
@@ -65,71 +64,130 @@ def show_u19_analytics():
         st.success("✅ File uploaded successfully!")
 
     # =======================================
-    # 📊 MAIN ANALYTICS SECTION
+    # 📊 ANALYTICS SECTION
     # =======================================
     if st.session_state.uploaded_data is not None:
         df = pd.read_excel(st.session_state.uploaded_data)
 
-        with st.expander("🔍 Preview Dataset"):
-            st.dataframe(df.head())
+        # Clean columns (case-insensitive)
+        df.columns = [c.strip().lower() for c in df.columns]
 
-        # ========================
-        # 🏏 KPIs Section
-        # ========================
-        st.markdown("### 📈 Team Summary KPIs")
+        # Only legal deliveries
+        if "ball_type" in df.columns:
+            df = df[df["ball_type"].str.lower() == "legal"]
 
+        # Match filter (optional if multiple)
+        if "match_id" in df.columns:
+            match_ids = df["match_id"].unique().tolist()
+            selected_match = st.selectbox("🎯 Select Match", match_ids)
+            df = df[df["match_id"] == selected_match]
+
+        # =======================================
+        # 📈 TEAM SUMMARY KPIs
+        # =======================================
         total_runs = df["total_runs"].sum()
-        wickets = df["player_dismissed"].count()
-        overs = df["over"].max()
-        run_rate = round(total_runs / overs, 2) if overs else 0
+        wickets = df["player_dismissed"].notnull().sum()
+        total_balls = len(df)
+        overs = int(total_balls // 6)
+        balls = int(total_balls % 6)
+        display_overs = f"{overs}.{balls}"
+        run_rate = round(total_runs / (total_balls / 6), 2) if total_balls > 0 else 0
 
+        st.markdown("### 📈 Team Summary KPIs")
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("Total Runs", total_runs)
         c2.metric("Wickets", wickets)
-        c3.metric("Overs", overs)
+        c3.metric("Overs", display_overs)
         c4.metric("Run Rate", run_rate)
 
-        # ========================
-        # 📊 Charts
-        # ========================
+        # =======================================
+        # 🏏 PHASE ANALYSIS
+        # =======================================
         st.markdown("### 📊 Phase Analysis (Powerplay, Middle, Death)")
-        df["phase"] = pd.cut(df["over"], bins=[0, 6, 15, 20], labels=["Powerplay", "Middle", "Death"])
-        phase_stats = df.groupby("phase")["total_runs"].sum().reset_index()
 
-        fig = px.bar(
-            phase_stats,
-            x="phase",
-            y="total_runs",
-            text="total_runs",
-            title="Runs by Phase",
-            color="phase",
-            color_discrete_sequence=["#D4AF37", "#EAD27A", "#F8F1C7"],
+        df["phase"] = pd.cut(
+            df["over"],
+            bins=[-1, 5, 14, 19],
+            labels=["Powerplay (0–5)", "Middle (6–14)", "Death (15–19)"]
         )
-        st.plotly_chart(fig, use_container_width=True)
 
-        st.markdown("### ⚡ Strike Rate by Phase")
-        df["balls_faced"] = 1
-        sr_phase = df.groupby("phase").agg({"total_runs": "sum", "balls_faced": "count"})
-        sr_phase["Strike Rate"] = (sr_phase["total_runs"] / sr_phase["balls_faced"]) * 100
-        fig2 = px.line(
-            sr_phase,
-            x=sr_phase.index,
-            y="Strike Rate",
-            markers=True,
-            line_shape="spline",
-            color_discrete_sequence=["#D4AF37"],
-        )
-        st.plotly_chart(fig2, use_container_width=True)
+        phase_summary = df.groupby("phase").agg(
+            Balls=("ball", "count"),
+            Runs=("total_runs", "sum")
+        ).reset_index()
 
-        # ========================
-        # 🧠 Analyst Insights
-        # ========================
+        phase_summary["Strike Rate"] = (phase_summary["Runs"] / phase_summary["Balls"]) * 100
+        phase_summary["Run Rate"] = (phase_summary["Runs"] / (phase_summary["Balls"] / 6))
+        phase_summary["Dot %"] = ((df[df["total_runs"] == 0]
+                                   .groupby("phase")["total_runs"].count()) / phase_summary["Balls"]) * 100
+        phase_summary["Boundary %"] = ((df[df["total_runs"] >= 4]
+                                        .groupby("phase")["total_runs"].count()) / phase_summary["Balls"]) * 100
+        phase_summary = phase_summary.fillna(0)
+
+        st.dataframe(phase_summary.style.format({
+            "Runs": "{:.0f}",
+            "Balls": "{:.0f}",
+            "Strike Rate": "{:.2f}",
+            "Run Rate": "{:.2f}",
+            "Dot %": "{:.2f}",
+            "Boundary %": "{:.2f}"
+        }).background_gradient(cmap="YlOrBr", axis=None))
+
+        # =======================================
+        # 📊 CHARTS
+        # =======================================
+        col1, col2 = st.columns(2)
+        with col1:
+            fig1 = px.bar(
+                phase_summary,
+                x="phase",
+                y="Runs",
+                text="Runs",
+                title="Runs by Phase",
+                color="phase",
+                color_discrete_sequence=["#D4AF37", "#EAD27A", "#F8F1C7"]
+            )
+            st.plotly_chart(fig1, use_container_width=True)
+
+        with col2:
+            fig2 = px.line(
+                phase_summary,
+                x="phase",
+                y="Strike Rate",
+                markers=True,
+                line_shape="spline",
+                color_discrete_sequence=["#D4AF37"]
+            )
+            fig2.update_traces(texttemplate='%{y:.1f}', textposition='top center')
+            st.plotly_chart(fig2, use_container_width=True)
+
+        # =======================================
+        # 🧠 ANALYST INSIGHTS
+        # =======================================
         st.markdown("### 🧠 Analyst Insights")
-        st.info("""
-        - Powerplay control and middle-over strike rate are crucial for batting momentum.  
-        - Death overs consistency in dot reduction increases total run potential.  
-        - Use phase data to plan bowler matchups and batting tempo per game segment.
-        """)
+
+        pp_sr = phase_summary.loc[phase_summary["phase"] == "Powerplay (0–5)", "Strike Rate"].values[0]
+        mid_sr = phase_summary.loc[phase_summary["phase"] == "Middle (6–14)", "Strike Rate"].values[0]
+        death_rr = phase_summary.loc[phase_summary["phase"] == "Death (15–19)", "Run Rate"].values[0]
+
+        insights = []
+        if pp_sr < 100:
+            insights.append("🔻 Powerplay scoring rate is below par — consider stronger openers or boundary options.")
+        else:
+            insights.append("✅ Powerplay momentum is strong — good strike rate up front.")
+
+        if mid_sr < 85:
+            insights.append("⚠️ Middle overs need better rotation and strike rotation strategy.")
+        else:
+            insights.append("✅ Middle overs show good control and acceleration.")
+
+        if death_rr < 8:
+            insights.append("🚨 Death overs run rate is low — finishing phase needs improvement.")
+        else:
+            insights.append("💥 Death overs show strong finishing power.")
+
+        for line in insights:
+            st.markdown(line)
 
     else:
         st.info("👆 Please upload an Excel file to begin analysis.")
