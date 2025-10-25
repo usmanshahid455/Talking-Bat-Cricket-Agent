@@ -1,63 +1,61 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+from io import BytesIO
 
 def show_u19_analytics():
     # =======================================
-    # ⚙️ PAGE SETTINGS
+    # ⚙️ PAGE CONFIG
     # =======================================
     st.set_page_config(page_title="U-19 Analytics", page_icon="📊", layout="wide")
 
     # =======================================
-    # 🎨 TALKING BAT THEME
+    # 🎨 TALKING BAT STYLE
     # =======================================
     st.markdown("""
-        <style>
-        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap');
-        html, body, [class*="css"] {
-            font-family: 'Poppins', sans-serif;
-            background-color: #ffffff;
-        }
-        .tb-header {
-            text-align:center;
-            padding: 15px 10px;
-            border-bottom: 2px solid #D4AF37;
-            margin-bottom: 15px;
-        }
-        .tb-title {
-            font-weight:700;
-            font-size:28px;
-            color:#D4AF37;
-            letter-spacing:1px;
-        }
-        .card {
-            background-color:#fff8e1;
-            border:1px solid #D4AF37;
-            border-radius:10px;
-            padding:12px;
-            text-align:center;
-            margin-bottom:8px;
-        }
-        .card h4 {color:#D4AF37; margin:4px 0 6px 0;}
-        .card p {margin:2px; color:#333;}
-        .tb-footer {
-            text-align:center;
-            color:#777;
-            margin-top:40px;
-            padding-top:10px;
-            border-top:1px solid #eee;
-            font-size:13px;
-        }
-        </style>
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap');
+    html, body, [class*="css"] {
+        font-family: 'Poppins', sans-serif;
+        background-color: #ffffff;
+    }
+    .tb-header {
+        text-align:center;
+        padding: 15px 10px;
+        border-bottom: 2px solid #D4AF37;
+        margin-bottom: 15px;
+    }
+    .tb-title {
+        font-weight:700;
+        font-size:28px;
+        color:#D4AF37;
+        letter-spacing:1px;
+    }
+    .card {
+        background-color:#fff8e1;
+        border:1px solid #D4AF37;
+        border-radius:10px;
+        padding:10px;
+        text-align:center;
+        margin-bottom:8px;
+    }
+    .card h4 {color:#D4AF37; margin:4px 0 6px 0;}
+    .card p {margin:2px; color:#333;}
+    .tb-footer {
+        text-align:center;
+        color:#777;
+        margin-top:40px;
+        padding-top:10px;
+        border-top:1px solid #eee;
+        font-size:13px;
+    }
+    </style>
     """, unsafe_allow_html=True)
 
-    # =======================================
-    # 🏏 HEADER
-    # =======================================
     st.markdown("""
     <div class='tb-header'>
-      <div class='tb-title'>📊 Talking Bat • U-19 Analytics</div>
-      <p style='color:#666; font-size:14px;'>Upload your Women U-19 Ball-by-Ball dataset to view detailed performance insights.</p>
+      <div class='tb-title'>📊 Talking Bat • U-19 Analytics (v3 Pro)</div>
+      <p style='color:#666; font-size:14px;'>Tournament, Match & Team level analytics for Women U-19 ball-by-ball data.</p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -76,19 +74,26 @@ def show_u19_analytics():
         df = pd.read_excel(st.session_state.uploaded_data)
         df.columns = [c.strip().lower() for c in df.columns]
 
-        # Filter legal balls
+        # ===== Filter legal deliveries =====
         if "ball_type" in df.columns:
             df = df[df["ball_type"].astype(str).str.lower() == "legal"]
 
-        # Match dropdown if match_id exists
-        if "match_id" in df.columns:
-            match_ids = df["match_id"].dropna().unique().tolist()
-            if len(match_ids) > 0:
-                selected_match = st.selectbox("🎯 Select Match", match_ids)
-                df = df[df["match_id"] == selected_match]
+        # ===== Cascading Filters =====
+        tournaments = sorted(df["tournament"].dropna().unique().tolist())
+        selected_tour = st.selectbox("🏆 Select Tournament", tournaments)
+
+        match_ids = sorted(df[df["tournament"] == selected_tour]["match_id"].dropna().unique().tolist())
+        selected_match = st.selectbox("🎯 Select Match ID", match_ids)
+
+        teams = sorted(df[df["match_id"] == selected_match]["batting_team"].dropna().unique().tolist())
+        selected_team = st.selectbox("🏏 Select Batting Team", teams)
+
+        df = df[(df["tournament"] == selected_tour) &
+                (df["match_id"] == selected_match) &
+                (df["batting_team"] == selected_team)]
 
         if df.empty:
-            st.warning("⚠️ No data available for analysis. Check columns or filters.")
+            st.warning("⚠️ No data available for this selection.")
             return
 
         # =======================================
@@ -114,13 +119,9 @@ def show_u19_analytics():
         # =======================================
         st.markdown("### 📊 Phase Analysis (Powerplay, Middle, Death)")
 
-        df["phase"] = pd.cut(
-            df["over"],
-            bins=[-1, 5, 14, 19],
-            labels=["Powerplay (0–5)", "Middle (6–14)", "Death (15–19)"]
-        ).astype(str)  # convert to string to avoid fillna error
+        df["phase"] = pd.cut(df["over"], bins=[-1, 5, 14, 19],
+                             labels=["Powerplay (0–5)", "Middle (6–14)", "Death (15–19)"]).astype(str)
 
-        # Phase summary
         phase_summary = df.groupby("phase").agg(
             Balls=("ball", "count"),
             Runs=("total_runs", "sum")
@@ -134,19 +135,14 @@ def show_u19_analytics():
                                         .groupby("phase")["total_runs"].count()) / phase_summary["Balls"]) * 100
         phase_summary = phase_summary.fillna(0)
 
-        st.dataframe(
-            phase_summary.style.format({
-                "Runs": "{:.0f}",
-                "Balls": "{:.0f}",
-                "Strike Rate": "{:.2f}",
-                "Run Rate": "{:.2f}",
-                "Dot %": "{:.2f}",
-                "Boundary %": "{:.2f}"
-            }).background_gradient(cmap="YlOrBr", axis=None)
-        )
+        st.dataframe(phase_summary.style.format({
+            "Runs": "{:.0f}", "Balls": "{:.0f}",
+            "Strike Rate": "{:.2f}", "Run Rate": "{:.2f}",
+            "Dot %": "{:.2f}", "Boundary %": "{:.2f}"
+        }).background_gradient(cmap="YlOrBr", axis=None))
 
         # =======================================
-        # 📊 TOP BATTERS & BOWLERS
+        # 🏅 TOP BATTERS & BOWLERS
         # =======================================
         st.markdown("### 🏅 Top Performers")
 
@@ -195,7 +191,7 @@ def show_u19_analytics():
                     )
 
         # =======================================
-        # 🧠 INSIGHTS
+        # 🧠 ANALYST INSIGHTS
         # =======================================
         st.markdown("### 🧠 Analyst Insights")
 
@@ -208,22 +204,38 @@ def show_u19_analytics():
 
         insights = []
         if pp_sr < 100:
-            insights.append("🔻 Powerplay scoring rate is below par — consider stronger openers or boundary options.")
+            insights.append("🔻 Powerplay scoring rate is below par — strengthen opening combination.")
         else:
-            insights.append("✅ Powerplay momentum is strong — good strike rate up front.")
+            insights.append("✅ Powerplay momentum strong — good boundary conversion.")
 
         if mid_sr < 85:
-            insights.append("⚠️ Middle overs need better rotation and strike rotation strategy.")
+            insights.append("⚠️ Middle overs need better rotation & strike control.")
         else:
-            insights.append("✅ Middle overs show good control and acceleration.")
+            insights.append("✅ Middle overs show solid rotation efficiency.")
 
         if death_rr < 8:
-            insights.append("🚨 Death overs run rate is low — finishing phase needs improvement.")
+            insights.append("🚨 Death overs run rate low — finishing phase needs improvement.")
         else:
-            insights.append("💥 Death overs show strong finishing power.")
+            insights.append("💥 Death overs show aggressive finishing potential.")
 
         for line in insights:
             st.markdown(line)
+
+        # =======================================
+        # 📤 EXPORT SECTION
+        # =======================================
+        st.markdown("### 📤 Export Data")
+
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+            df.to_excel(writer, index=False, sheet_name="Ball-by-Ball")
+            phase_summary.to_excel(writer, index=False, sheet_name="Phase Summary")
+            top_batters.to_excel(writer, index=False, sheet_name="Top Batters")
+            top_bowlers.to_excel(writer, index=False, sheet_name="Top Bowlers")
+        excel_data = output.getvalue()
+        st.download_button("⬇️ Download Excel Report", data=excel_data,
+                           file_name=f"{selected_team}_Analytics_Report.xlsx",
+                           mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
     else:
         st.info("👆 Please upload an Excel file to begin analysis.")
