@@ -1,14 +1,10 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
 from io import BytesIO
 
 def show_u19_analytics():
     st.set_page_config(page_title="U-19 Analytics", page_icon="📊", layout="wide")
 
-    # =======================================
-    # 🎨 TALKING BAT STYLE
-    # =======================================
     st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap');
@@ -28,16 +24,6 @@ def show_u19_analytics():
         color:#D4AF37;
         letter-spacing:1px;
     }
-    .card {
-        background-color:#fff8e1;
-        border:1px solid #D4AF37;
-        border-radius:10px;
-        padding:10px;
-        text-align:center;
-        margin-bottom:8px;
-    }
-    .card h4 {color:#D4AF37; margin:4px 0 6px 0;}
-    .card p {margin:2px; color:#333;}
     .tb-footer {
         text-align:center;
         color:#777;
@@ -56,35 +42,31 @@ def show_u19_analytics():
     </div>
     """, unsafe_allow_html=True)
 
-    # =======================================
-    # 📁 FILE UPLOAD
-    # =======================================
-    if "uploaded_data" not in st.session_state:
-        st.session_state.uploaded_data = None
-
     uploaded_file = st.file_uploader("📂 Upload Excel File", type=["xlsx", "xls"])
+
     if uploaded_file is not None:
-        st.session_state.uploaded_data = uploaded_file
-        st.success("✅ File uploaded successfully!")
+        df = pd.read_excel(uploaded_file)
+        df.columns = [c.strip() for c in df.columns]
 
-    if st.session_state.uploaded_data is not None:
-        df = pd.read_excel(st.session_state.uploaded_data)
+        # ✅ Auto-map column names (case-insensitive)
+        colmap = {c.lower().replace(" ", "_"): c for c in df.columns}
+        get = lambda x: colmap.get(x, None)
 
-        # ✅ Normalize column names
-        df.columns = [c.strip().lower().replace(" ", "_") for c in df.columns]
-
-        # ✅ Verify required columns exist
-        required_cols = ["tournament", "match_id", "batting_team", "over", "ball", "total_runs"]
-        missing = [c for c in required_cols if c not in df.columns]
+        # Ensure required columns exist
+        required = ["tournament", "match_id", "batting_team", "over", "ball", "total_runs"]
+        missing = [x for x in required if get(x) is None]
         if missing:
             st.error(f"Missing required columns: {', '.join(missing)}")
             st.stop()
 
-        # ===== Filter legal deliveries =====
-        if "ball_type" in df.columns:
-            df = df[df["ball_type"].astype(str).str.lower() == "legal"]
+        df = df.rename(columns={get("tournament"): "tournament",
+                                get("match_id"): "match_id",
+                                get("batting_team"): "batting_team",
+                                get("over"): "over",
+                                get("ball"): "ball",
+                                get("total_runs"): "total_runs"})
 
-        # ===== Cascading Filters =====
+        # 🎯 Filters
         tournaments = sorted(df["tournament"].dropna().unique().tolist())
         selected_tour = st.selectbox("🏆 Select Tournament", tournaments)
 
@@ -94,67 +76,29 @@ def show_u19_analytics():
         teams = sorted(df[df["match_id"] == selected_match]["batting_team"].dropna().unique().tolist())
         selected_team = st.selectbox("🏏 Select Batting Team", teams)
 
-        df = df[(df["tournament"] == selected_tour) &
-                (df["match_id"] == selected_match) &
-                (df["batting_team"] == selected_team)]
+        filtered = df[(df["tournament"] == selected_tour) &
+                      (df["match_id"] == selected_match) &
+                      (df["batting_team"] == selected_team)]
 
-        if df.empty:
+        if filtered.empty:
             st.warning("⚠️ No data available for this selection.")
             return
 
-        # =======================================
-        # 📈 TEAM SUMMARY KPIs
-        # =======================================
-        total_runs = df["total_runs"].sum()
-        wickets = df["player_dismissed"].notnull().sum() if "player_dismissed" in df.columns else 0
-        total_balls = len(df)
+        # ✅ Stats Summary
+        st.markdown("### 📈 Team Summary KPIs")
+        total_runs = filtered["total_runs"].sum()
+        total_balls = len(filtered)
         overs = int(total_balls // 6)
         balls = int(total_balls % 6)
-        display_overs = f"{overs}.{balls}"
-        run_rate = round(total_runs / (total_balls / 6), 2) if total_balls > 0 else 0
-
-        st.markdown("### 📈 Team Summary KPIs")
+        run_rate = round(total_runs / (total_balls / 6), 2)
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("Total Runs", total_runs)
-        c2.metric("Wickets", wickets)
-        c3.metric("Overs", display_overs)
+        c2.metric("Balls", total_balls)
+        c3.metric("Overs", f"{overs}.{balls}")
         c4.metric("Run Rate", run_rate)
 
-        # =======================================
-        # 📊 PHASE ANALYSIS
-        # =======================================
-        st.markdown("### 📊 Phase Analysis (Powerplay, Middle, Death)")
-
-        df["phase"] = pd.cut(df["over"], bins=[-1, 5, 14, 19],
-                             labels=["Powerplay (0–5)", "Middle (6–14)", "Death (15–19)"]).astype(str)
-
-        phase_summary = df.groupby("phase").agg(
-            Balls=("ball", "count"),
-            Runs=("total_runs", "sum")
-        ).reset_index()
-
-        phase_summary["Strike Rate"] = (phase_summary["Runs"] / phase_summary["Balls"]) * 100
-        phase_summary["Run Rate"] = (phase_summary["Runs"] / (phase_summary["Balls"] / 6))
-        phase_summary["Dot %"] = ((df[df["total_runs"] == 0]
-                                   .groupby("phase")["total_runs"].count()) / phase_summary["Balls"]) * 100
-        phase_summary["Boundary %"] = ((df[df["total_runs"] >= 4]
-                                        .groupby("phase")["total_runs"].count()) / phase_summary["Balls"]) * 100
-        phase_summary = phase_summary.fillna(0)
-
-        st.dataframe(phase_summary.style.format({
-            "Runs": "{:.0f}", "Balls": "{:.0f}",
-            "Strike Rate": "{:.2f}", "Run Rate": "{:.2f}",
-            "Dot %": "{:.2f}", "Boundary %": "{:.2f}"
-        }).background_gradient(cmap="YlOrBr", axis=None))
-
-        # =======================================
-        # 🧠 INSIGHTS + TOP PLAYERS (unchanged from v3)
-        # =======================================
-        st.markdown("### 🧠 Analyst Insights")
-        st.info("Insights and performance highlights will appear here after filters.")
-
     else:
-        st.info("👆 Please upload an Excel file to begin analysis.")
+        st.info("👆 Please upload your Women U-19 Excel file to start analysis.")
 
     st.markdown("""
     <div class='tb-footer'>
