@@ -9,7 +9,7 @@ def show_u19_analytics():
     st.set_page_config(page_title="U-19 Analytics", page_icon="📊", layout="wide")
 
     # =======================================
-    # 🎨 TALKING BAT STYLE
+    # 🎨 TALKING BAT THEME
     # =======================================
     st.markdown("""
         <style>
@@ -30,6 +30,16 @@ def show_u19_analytics():
             color:#D4AF37;
             letter-spacing:1px;
         }
+        .card {
+            background-color:#fff8e1;
+            border:1px solid #D4AF37;
+            border-radius:10px;
+            padding:12px;
+            text-align:center;
+            margin-bottom:8px;
+        }
+        .card h4 {color:#D4AF37; margin:4px 0 6px 0;}
+        .card p {margin:2px; color:#333;}
         .tb-footer {
             text-align:center;
             color:#777;
@@ -52,35 +62,34 @@ def show_u19_analytics():
     """, unsafe_allow_html=True)
 
     # =======================================
-    # 📁 FILE UPLOAD (Persist Session)
+    # 📁 FILE UPLOAD
     # =======================================
     if "uploaded_data" not in st.session_state:
         st.session_state.uploaded_data = None
 
     uploaded_file = st.file_uploader("📂 Upload Excel File", type=["xlsx", "xls"])
-
     if uploaded_file is not None:
         st.session_state.uploaded_data = uploaded_file
         st.success("✅ File uploaded successfully!")
 
-    # =======================================
-    # 📊 ANALYTICS SECTION
-    # =======================================
     if st.session_state.uploaded_data is not None:
         df = pd.read_excel(st.session_state.uploaded_data)
-
-        # Clean columns (case-insensitive)
         df.columns = [c.strip().lower() for c in df.columns]
 
-        # Only legal deliveries
+        # Filter legal balls
         if "ball_type" in df.columns:
-            df = df[df["ball_type"].str.lower() == "legal"]
+            df = df[df["ball_type"].astype(str).str.lower() == "legal"]
 
-        # Match filter (optional if multiple)
+        # Match dropdown if match_id exists
         if "match_id" in df.columns:
-            match_ids = df["match_id"].unique().tolist()
-            selected_match = st.selectbox("🎯 Select Match", match_ids)
-            df = df[df["match_id"] == selected_match]
+            match_ids = df["match_id"].dropna().unique().tolist()
+            if len(match_ids) > 0:
+                selected_match = st.selectbox("🎯 Select Match", match_ids)
+                df = df[df["match_id"] == selected_match]
+
+        if df.empty:
+            st.warning("⚠️ No data available for analysis. Check columns or filters.")
+            return
 
         # =======================================
         # 📈 TEAM SUMMARY KPIs
@@ -101,7 +110,7 @@ def show_u19_analytics():
         c4.metric("Run Rate", run_rate)
 
         # =======================================
-        # 🏏 PHASE ANALYSIS
+        # 📊 PHASE ANALYSIS
         # =======================================
         st.markdown("### 📊 Phase Analysis (Powerplay, Middle, Death)")
 
@@ -109,8 +118,9 @@ def show_u19_analytics():
             df["over"],
             bins=[-1, 5, 14, 19],
             labels=["Powerplay (0–5)", "Middle (6–14)", "Death (15–19)"]
-        )
+        ).astype(str)  # convert to string to avoid fillna error
 
+        # Phase summary
         phase_summary = df.groupby("phase").agg(
             Balls=("ball", "count"),
             Runs=("total_runs", "sum")
@@ -124,51 +134,77 @@ def show_u19_analytics():
                                         .groupby("phase")["total_runs"].count()) / phase_summary["Balls"]) * 100
         phase_summary = phase_summary.fillna(0)
 
-        st.dataframe(phase_summary.style.format({
-            "Runs": "{:.0f}",
-            "Balls": "{:.0f}",
-            "Strike Rate": "{:.2f}",
-            "Run Rate": "{:.2f}",
-            "Dot %": "{:.2f}",
-            "Boundary %": "{:.2f}"
-        }).background_gradient(cmap="YlOrBr", axis=None))
+        st.dataframe(
+            phase_summary.style.format({
+                "Runs": "{:.0f}",
+                "Balls": "{:.0f}",
+                "Strike Rate": "{:.2f}",
+                "Run Rate": "{:.2f}",
+                "Dot %": "{:.2f}",
+                "Boundary %": "{:.2f}"
+            }).background_gradient(cmap="YlOrBr", axis=None)
+        )
 
         # =======================================
-        # 📊 CHARTS
+        # 📊 TOP BATTERS & BOWLERS
         # =======================================
-        col1, col2 = st.columns(2)
-        with col1:
-            fig1 = px.bar(
-                phase_summary,
-                x="phase",
-                y="Runs",
-                text="Runs",
-                title="Runs by Phase",
-                color="phase",
-                color_discrete_sequence=["#D4AF37", "#EAD27A", "#F8F1C7"]
+        st.markdown("### 🏅 Top Performers")
+
+        if "batsman" in df.columns:
+            top_batters = (
+                df.groupby("batsman")["total_runs"]
+                .sum()
+                .sort_values(ascending=False)
+                .head(5)
+                .reset_index()
             )
-            st.plotly_chart(fig1, use_container_width=True)
+            st.markdown("#### 🏏 Top 5 Batters")
+            cols = st.columns(5)
+            for i, row in top_batters.iterrows():
+                with cols[i]:
+                    st.markdown(
+                        f"""
+                        <div class='card'>
+                            <h4>{row['batsman']}</h4>
+                            <p><b>Runs:</b> {int(row['total_runs'])}</p>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
 
-        with col2:
-            fig2 = px.line(
-                phase_summary,
-                x="phase",
-                y="Strike Rate",
-                markers=True,
-                line_shape="spline",
-                color_discrete_sequence=["#D4AF37"]
+        if "bowler" in df.columns:
+            top_bowlers = (
+                df.groupby("bowler")["player_dismissed"]
+                .count()
+                .sort_values(ascending=False)
+                .head(5)
+                .reset_index()
             )
-            fig2.update_traces(texttemplate='%{y:.1f}', textposition='top center')
-            st.plotly_chart(fig2, use_container_width=True)
+            st.markdown("#### 🎯 Top 5 Bowlers")
+            cols = st.columns(5)
+            for i, row in top_bowlers.iterrows():
+                with cols[i]:
+                    st.markdown(
+                        f"""
+                        <div class='card'>
+                            <h4>{row['bowler']}</h4>
+                            <p><b>Wickets:</b> {int(row['player_dismissed'])}</p>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
 
         # =======================================
-        # 🧠 ANALYST INSIGHTS
+        # 🧠 INSIGHTS
         # =======================================
         st.markdown("### 🧠 Analyst Insights")
 
-        pp_sr = phase_summary.loc[phase_summary["phase"] == "Powerplay (0–5)", "Strike Rate"].values[0]
-        mid_sr = phase_summary.loc[phase_summary["phase"] == "Middle (6–14)", "Strike Rate"].values[0]
-        death_rr = phase_summary.loc[phase_summary["phase"] == "Death (15–19)", "Run Rate"].values[0]
+        try:
+            pp_sr = phase_summary.loc[phase_summary["phase"] == "Powerplay (0–5)", "Strike Rate"].values[0]
+            mid_sr = phase_summary.loc[phase_summary["phase"] == "Middle (6–14)", "Strike Rate"].values[0]
+            death_rr = phase_summary.loc[phase_summary["phase"] == "Death (15–19)", "Run Rate"].values[0]
+        except IndexError:
+            pp_sr = mid_sr = death_rr = 0
 
         insights = []
         if pp_sr < 100:
