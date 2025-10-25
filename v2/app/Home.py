@@ -5,8 +5,9 @@ st.set_page_config(page_title="Talking Bat", page_icon="🏏", layout="wide")
 auto_refresh()
 header()
 
-query = params = st.query_params
-().get("page", ["home"])[0]
+# ✅ Correct query handling (fixed your line)
+params = st.query_params
+query = params.get("page", ["home"])[0]
 
 if query == "live":
     from Live import show_live
