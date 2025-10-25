@@ -1,12 +1,16 @@
 import streamlit as st
 from utils import auto_refresh, header
 
-# ====== PAGE CONFIG ======
+# ==============================
+# ⚙️ PAGE CONFIGURATION
+# ==============================
 st.set_page_config(page_title="Talking Bat", page_icon="🏏", layout="wide")
 auto_refresh()
 header()
 
-# ====== SESSION NAVIGATION ======
+# ==============================
+# 🧭 SESSION STATE NAVIGATION
+# ==============================
 if "page" not in st.session_state:
     st.session_state.page = "home"
 
@@ -15,8 +19,12 @@ def set_page(p):
 
 page = st.session_state.page
 
-# ====== MAIN NAV BUTTONS ======
+# ==============================
+# 🏠 MAIN NAVIGATION BUTTONS
+# ==============================
+st.markdown("<br>", unsafe_allow_html=True)
 c1, c2, c3, c4, c5 = st.columns(5)
+
 with c1:
     if st.button("🏏 Live"):
         set_page("live")
@@ -33,46 +41,59 @@ with c5:
     if st.button("📊 U-19 Analytics"):
         set_page("u19")
 
-# ====== PAGE ROUTING ======
+# ==============================
+# 📄 PAGE ROUTING
+# ==============================
 if page == "live":
-    from Live import show_live
+    from app.Live import show_live
     show_live()
 
 elif page == "fixtures":
-    from Fixtures import show_fixtures
+    from app.Fixtures import show_fixtures
     show_fixtures()
 
 elif page == "results":
-    from Results import show_results
+    from app.Results import show_results
     show_results()
 
 elif page == "scorecard":
-    from Scorecard import show_scorecard
+    from app.Scorecard import show_scorecard
     show_scorecard()
 
 elif page == "u19":
-    from U19_Analytics import show_u19_analytics
+    from app.U19_Analytics import show_u19_analytics
     show_u19_analytics()
 
 else:
     st.markdown(
         """
-        <div class='tb-card'>
-          <h3>Welcome to <span style='color:#D4AF37;'>Talking Bat Pro Analytics</span></h3>
-          <p>This platform combines <b>Live Cricket Data</b> and <b>Talking Bat Performance Analytics</b>
-             into one professional dashboard.</p>
-          <ul>
-            <li>🏏 Track live international and domestic matches</li>
-            <li>📊 Upload U-19 data and view team & player KPIs</li>
-            <li>🤖 Generate AI Insights for scouting and coaching</li>
-          </ul>
+        <div style='text-align:center; padding:25px;'>
+          <h2 style='color:#D4AF37;'>🏏 Welcome to Talking Bat Pro Analytics</h2>
+          <p style='font-size:16px; color:#444;'>
+            This platform unifies <b>Live Cricket Data</b> and <b>Performance Analytics</b> 
+            into one professional dashboard built for analysts, coaches, and scouts.
+          </p>
+          <div style='text-align:left; display:inline-block; margin-top:20px;'>
+            <ul style='line-height:1.8; font-size:15px; color:#555;'>
+              <li>📡 Track live international & domestic matches</li>
+              <li>📊 Upload U-19 datasets to view KPIs & trends</li>
+              <li>🤖 Generate AI-powered insights for match strategy</li>
+            </ul>
+          </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-# ====== FOOTER ======
+# ==============================
+# ⚓ FOOTER
+# ==============================
 st.markdown(
-    "<div class='tb-footer'>Powered by Talking Bat Analytics © 2025 | All Rights Reserved</div>",
+    """
+    <div class='tb-footer' style='text-align:center; color:#777; margin-top:40px;
+         border-top:1px solid #eee; padding-top:10px; font-size:13px;'>
+         Powered by <span style='color:#D4AF37; font-weight:600;'>Talking Bat Analytics</span> © 2025 | All Rights Reserved
+    </div>
+    """,
     unsafe_allow_html=True,
 )
