@@ -6,26 +6,101 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-GOLD = "#D4AF37"
+# ======================= THEME =======================
+PRIMARY = "#002B5B"   # Deep navy
+ACCENT  = "#3A506B"   # Muted blue
+LTGRAY  = "#EAEAEA"   # Light gray
+WHITE   = "#FFFFFF"
 
-# ----------------------------- THEME -----------------------------
 def _inject_css():
     st.markdown(
         f"""
         <style>
-        .tb-card {{ border:1px solid {GOLD}55; border-radius:14px; padding:14px 16px; margin:8px 0; background:#fff; }}
-        .tb-h4 {{ color:{GOLD}; margin:6px 0 10px 0; }}
-        .tb-mute {{ color:#666; }}
-        .metric-row div[data-testid="stMetricValue"] {{ font-size:22px; }}
-        .stTabs [data-baseweb="tab-list"] button {{ font-weight:600; }}
+        /* Page base */
+        .main, .block-container {{
+          padding-top: 0.6rem;
+          padding-bottom: 0.6rem;
+        }}
+
+        /* Cards & headers */
+        .tb-card {{
+          background: {WHITE};
+          border: 1px solid {LTGRAY};
+          border-radius: 12px;
+          padding: 10px 14px;
+          margin: 8px 0;
+          box-shadow: 0 1px 2px rgba(0,0,0,.04);
+        }}
+        .tb-title {{
+          color: {PRIMARY};
+          font-weight: 700;
+          margin: 0;
+        }}
+        .tb-sub {{
+          color: #5a6b7b;
+          margin: 2px 0 0 0;
+          font-size: 14px;
+        }}
+        .tb-h4 {{ color: {PRIMARY}; margin: 6px 0 8px; }}
+        .tb-mute {{ color: #708090; }}
+
+        /* Compact metrics */
+        div[data-testid="stMetric"] {{
+          background: {WHITE};
+          border: 1px solid {LTGRAY};
+          border-radius: 10px;
+          padding: 6px 8px;
+          text-align: center;
+        }}
+        div[data-testid="stMetric"] label p {{
+          margin-bottom: 2px !important;
+          color: {ACCENT} !important;
+          font-weight: 600;
+          text-align: center !important;
+        }}
+        div[data-testid="stMetricValue"] {{
+          font-size: 22px !important;
+          text-align: center !important;
+        }}
+
+        /* Tabs */
+        .stTabs [data-baseweb="tab-list"] button {{
+          font-weight: 600;
+          color: {PRIMARY};
+        }}
+
+        /* Center table headers & cells */
+        .tb-table table {{
+          width: 100%;
+          border-collapse: collapse;
+        }}
+        .tb-table th, .tb-table td {{
+          border: 1px solid {LTGRAY};
+          padding: 6px 8px;
+          text-align: center;      /* center cells */
+          vertical-align: middle;
+          font-size: 13px;
+        }}
+        .tb-table th {{
+          background: #f7f9fc;
+          color: {PRIMARY};
+          font-weight: 700;
+        }}
         </style>
         """,
         unsafe_allow_html=True,
     )
 
-# ----------------------- COLUMN NORMALIZATION --------------------
+# Helper: center-aligned HTML table (so Streamlit keeps alignment)
+def _html_table(df: pd.DataFrame, index=False) -> str:
+    return (
+        "<div class='tb-table'>"
+        + df.to_html(index=index, escape=False)
+        + "</div>"
+    )
+
+# ===================== COLUMN NORMALIZATION =====================
 def _normalize_cols(df: pd.DataFrame) -> pd.DataFrame:
-    """Make headers consistent (match id → match_id, etc.)."""
     df = df.copy()
     df.columns = (
         df.columns.astype(str)
@@ -65,7 +140,7 @@ def _normalize_cols(df: pd.DataFrame) -> pd.DataFrame:
     }
     return df.rename(columns=rename_map)
 
-# ----------------------------- UTILS -----------------------------
+# =========================== UTILS ==============================
 LEGAL_EXTRAS = {"wd", "wide", "nb", "noball", "no_ball"}
 
 def is_legal(ball_type: str) -> bool:
@@ -78,7 +153,6 @@ def over_from_balls(balls: int) -> float:
     return balls // 6 + (balls % 6) / 6.0
 
 def phase_from_over(over: int) -> str:
-    # Your definition: 0–5, 6–14, 15–19
     if over <= 5:
         return "Powerplay (0–5)"
     elif over <= 14:
@@ -98,33 +172,39 @@ def coarse_type(action: str, btype: str) -> str:
     if re.search(r"(fast|medium|rmf|lmf|pace)", txt): return "Pace"
     return "Other"
 
-# ------------------------ CACHED LOADER --------------------------
+# ===================== CACHED READER ============================
 @st.cache_data(show_spinner=False)
 def _read_and_prepare(file) -> pd.DataFrame:
     df = pd.read_excel(file)
     df = _normalize_cols(df)
-    # numeric coercions
+
+    # Numeric coercions
     for c in ["over", "ball", "batsman_runs", "total_runs"]:
         if c in df.columns:
             df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0).astype(int)
-    # strip strings
+
+    # String trims
     for c in ["tournament","match_id","batting_team","bowling_team","batsman","bowler",
               "ball_type","bowling_action","bowler_type","dismissal_kind","player_dismissed","batting_style"]:
         if c in df.columns:
             df[c] = df[c].astype(str).str.strip()
     return df
 
-# ----------------------------- MAIN ------------------------------
+# =========================== MAIN ===============================
 def show_u19_analytics():
+    st.set_page_config(page_title="U-19 Analytics", page_icon="📊", layout="wide")
     _inject_css()
 
     st.markdown(
-        f"<div class='tb-card'><h3 class='tb-h4'>📊 Talking Bat • U-19 Analytics</h3>"
-        f"<div class='tb-mute'>Tournament → Match → Team analysis on Women U-19 ball-by-ball data.</div></div>",
-        unsafe_allow_html=True,
+        f"""
+        <div class="tb-card">
+          <h3 class="tb-title">📊 Talking Bat • U-19 Analytics</h3>
+          <p class="tb-sub">Tournament → Match → Team analysis • Compact blue theme • Center-aligned tables</p>
+        </div>
+        """, unsafe_allow_html=True
     )
 
-    uploaded = st.file_uploader("📂 Upload Excel File", type=["xlsx", "xls"])
+    uploaded = st.file_uploader("📂 Upload Excel File", type=["xlsx","xls"])
     if not uploaded:
         st.info("👆 Please upload your Women U-19 ball-by-ball Excel.")
         return
@@ -135,8 +215,8 @@ def show_u19_analytics():
         st.error(f"❌ Failed to read Excel: {e}")
         return
 
-    required = ["tournament","match_id","batting_team","total_runs","over","ball",
-                "batsman","bowler","bowling_action","bowler_type","ball_type"]
+    # Checks
+    required = ["tournament","match_id","batting_team","total_runs","over","ball","batsman","bowler","ball_type"]
     missing = [c for c in required if c not in df.columns]
     if missing:
         st.error(f"❌ Missing columns: {missing}")
@@ -169,7 +249,7 @@ def show_u19_analytics():
     dsel["is_legal"] = dsel["ball_type"].apply(is_legal)
     dsel["phase"] = dsel["over"].apply(phase_from_over)
 
-    # ---------------------- KPIs ----------------------
+    # ================= KPIs =================
     legal = dsel[dsel["is_legal"]]
     balls = int(legal.shape[0])
     overs_val = over_from_balls(balls)
@@ -178,13 +258,13 @@ def show_u19_analytics():
     rr = (runs / overs_val) if overs_val > 0 else 0.0
 
     st.markdown(f"<h4 class='tb-h4'>📈 Team Summary KPIs</h4>", unsafe_allow_html=True)
-    k1, k2, k3, k4 = st.columns(4)
+    k1, k2, k3, k4 = st.columns([1,1,1,1])
     k1.metric("Total Runs", runs)
     k2.metric("Wickets", wkts)
     k3.metric("Overs", f"{overs_val:.1f}")
     k4.metric("Run Rate", f"{rr:.2f}")
 
-    # ------------------- Phase Analysis ----------------
+    # =============== Phase Analysis ===============
     phase = (
         dsel.groupby("phase", as_index=False)
             .agg(runs=("total_runs","sum"),
@@ -199,35 +279,49 @@ def show_u19_analytics():
 
         st.markdown(f"<h4 class='tb-h4'>📊 Phase Analysis</h4>", unsafe_allow_html=True)
         cA, cB, cC = st.columns(3)
+
         with cA:
-            fig1 = px.bar(phase, x="phase", y="runs", text_auto=True,
-                          title="Runs by Phase",
-                          color="phase",
-                          color_discrete_sequence=[GOLD, "#C0C0C0", "#8B8000"])
-            fig1.update_layout(showlegend=False)
+            fig1 = px.bar(
+                phase, x="phase", y="runs", text_auto=True,
+                title="Runs by Phase",
+                color="phase",
+                color_discrete_sequence=[PRIMARY, ACCENT, "#5C7A99"]
+            )
+            fig1.update_layout(showlegend=False, margin=dict(l=10,r=10,t=40,b=10))
+            fig1.update_traces(hovertemplate="Phase: %{x}<br>Runs: %{y}")
             st.plotly_chart(fig1, use_container_width=True)
+
         with cB:
-            fig2 = px.line(phase, x="phase", y="SR", markers=True,
-                           title="Strike Rate by Phase",
-                           color_discrete_sequence=[GOLD])
+            fig2 = px.line(
+                phase, x="phase", y="SR", markers=True,
+                title="Strike Rate by Phase",
+                color_discrete_sequence=[PRIMARY]
+            )
+            fig2.update_layout(margin=dict(l=10,r=10,t=40,b=10), hovermode="x unified")
+            fig2.update_traces(hovertemplate="Phase: %{x}<br>SR: %{y:.1f}")
             st.plotly_chart(fig2, use_container_width=True)
+
         with cC:
             # RR by over
             og = dsel[dsel["is_legal"]].groupby("over", as_index=False)\
                     .agg(B=("is_legal","sum"), R=("total_runs","sum"))
             if not og.empty:
                 og["RR"] = np.where(og["B"]>0, og["R"]/(og["B"]/6), 0.0)
-                fig3 = px.line(og, x="over", y="RR", markers=True,
-                               title="Run Rate by Over",
-                               color_discrete_sequence=["#C89B3C"])
+                fig3 = px.line(
+                    og, x="over", y="RR", markers=True,
+                    title="Run Rate by Over",
+                    color_discrete_sequence=[ACCENT]
+                )
+                fig3.update_layout(margin=dict(l=10,r=10,t=40,b=10), hovermode="x unified")
+                fig3.update_traces(hovertemplate="Over: %{x}<br>RR: %{y:.2f}")
                 st.plotly_chart(fig3, use_container_width=True)
 
     st.markdown("---")
 
-    # ---------------- TABS: Batting / Bowling / Match-ups ----------------
+    # ================= TABS =================
     tab_bat, tab_bowl, tab_matchups = st.tabs(["🏏 Batting", "🎯 Bowling", "🔄 Match-ups"])
 
-    # ===== Batting Tab =====
+    # -------- Batting --------
     with tab_bat:
         bat = dsel.copy()
         bat["legal_ball"] = bat["is_legal"] & (bat["batsman_runs"] >= 0)
@@ -246,10 +340,11 @@ def show_u19_analytics():
             batters["Dot%"] = np.where(batters["B"]>0, batters["Dots"]*100/batters["B"], 0.0)
             bat_top = batters.sort_values(["R","SR"], ascending=[False, False]).head(5)
             st.markdown("<div class='tb-card'><b>Top 5 Batters</b></div>", unsafe_allow_html=True)
-            st.dataframe(bat_top.rename(columns={"batsman":"Batsman"}),
-                         use_container_width=True)
 
-    # ===== Bowling Tab =====
+            table = bat_top.rename(columns={"batsman":"Batsman"})[["Batsman","R","B","Fours","Sixes","SR","Dot%"]]
+            st.markdown(_html_table(table), unsafe_allow_html=True)
+
+    # -------- Bowling --------
     with tab_bowl:
         bwl = dsel.copy()
         bwl["dot"] = (bwl["total_runs"]==0) & bwl["is_legal"]
@@ -269,8 +364,9 @@ def show_u19_analytics():
             bowlers["Dot%"] = np.where(bowlers["B"]>0, bowlers["Dots"]*100/bowlers["B"], 0.0)
             bowl_top = bowlers.sort_values(["W","Econ"], ascending=[False, True]).head(5)
             st.markdown("<div class='tb-card'><b>Top 5 Bowlers</b></div>", unsafe_allow_html=True)
-            st.dataframe(bowl_top.rename(columns={"bowler":"Bowler"}),
-                         use_container_width=True)
+
+            table = bowl_top.rename(columns={"bowler":"Bowler"})[["Bowler","O","R","W","Econ","SR","Dot%"]]
+            st.markdown(_html_table(table), unsafe_allow_html=True)
 
             # Pace vs Spin
             dsel["coarse"] = dsel.apply(
@@ -289,34 +385,56 @@ def show_u19_analytics():
                 st.markdown("<div class='tb-card'><b>Pace vs Spin</b></div>", unsafe_allow_html=True)
                 cPS1, cPS2 = st.columns(2)
                 with cPS1:
-                    fig_ps1 = px.bar(by_coarse, x="coarse", y="R", text_auto=True,
-                                     title="Runs vs Pace/Spin", color="coarse",
-                                     color_discrete_sequence=[GOLD, "#9b59b6", "#95a5a6"])
-                    fig_ps1.update_layout(showlegend=False)
+                    fig_ps1 = px.bar(
+                        by_coarse, x="coarse", y="R", text_auto=True,
+                        title="Runs vs Pace/Spin",
+                        color="coarse",
+                        color_discrete_sequence=[PRIMARY, ACCENT, "#5C7A99"]
+                    )
+                    fig_ps1.update_layout(showlegend=False, margin=dict(l=10,r=10,t=40,b=10))
+                    fig_ps1.update_traces(hovertemplate="Type: %{x}<br>Runs: %{y}")
                     st.plotly_chart(fig_ps1, use_container_width=True)
                 with cPS2:
-                    fig_ps2 = px.bar(by_coarse, x="coarse", y="Dot%", text_auto=".1f",
-                                     title="Dot% vs Pace/Spin", color="coarse",
-                                     color_discrete_sequence=[GOLD, "#9b59b6", "#95a5a6"])
-                    fig_ps2.update_layout(showlegend=False, yaxis_ticksuffix="%")
+                    fig_ps2 = px.bar(
+                        by_coarse, x="coarse", y="Dot%", text_auto=".1f",
+                        title="Dot% vs Pace/Spin",
+                        color="coarse",
+                        color_discrete_sequence=[PRIMARY, ACCENT, "#5C7A99"]
+                    )
+                    fig_ps2.update_layout(showlegend=False, margin=dict(l=10,r=10,t=40,b=10))
+                    fig_ps2.update_traces(hovertemplate="Type: %{x}<br>Dot%: %{y:.1f}%")
                     st.plotly_chart(fig_ps2, use_container_width=True)
 
-    # ===== Match-ups Tab =====
+            # Bowling Action (top 10)
+            actions = (
+                dsel.groupby("bowling_action", as_index=False)
+                    .agg(B=("is_legal","sum"),
+                         R=("total_runs","sum"),
+                         bat_runs=("batsman_runs","sum"),
+                         Dots=("total_runs", lambda s: int((s==0).sum())))
+                    .sort_values("R", ascending=False)
+                    .head(10)
+            )
+            if not actions.empty:
+                actions["SR"]  = np.where(actions["B"]>0, actions["bat_runs"]*100/actions["B"], 0.0)
+                actions["Dot%"] = np.where(actions["B"]>0, actions["Dots"]*100/actions["B"], 0.0)
+                st.markdown("<div class='tb-card'><b>Bowling Action Breakdown (Top 10)</b></div>", unsafe_allow_html=True)
+                table = actions.rename(columns={"bowling_action":"Action"})[["Action","B","R","SR","Dot%"]]
+                st.markdown(_html_table(table), unsafe_allow_html=True)
+
+    # -------- Match-ups --------
     with tab_matchups:
         st.markdown("<div class='tb-card'><b>Match-ups Dashboard</b></div>", unsafe_allow_html=True)
-
         mu_tabs = st.tabs(["👥 Batter vs Bowler", "🧩 Batter vs Bowling Action", "🫲 Bowler vs Batting Style (RHB/LHB)"])
 
-        # ---- Batter vs Bowler ----
+        # Batter vs Bowler
         with mu_tabs[0]:
             g = dsel.copy()
             g["legal_ball"] = g["is_legal"]
-            # runs/balls by pair
             pair = (g.groupby(["batsman","bowler"], as_index=False)
                       .agg(R=("batsman_runs","sum"),
                            B=("legal_ball","sum"),
                            Dots=("batsman_runs", lambda s: int((s==0).sum()))))
-            # dismissals by pair: batter dismissed where player_dismissed == batsman
             g["dismiss_flag"] = (g["player_dismissed"].replace(["","nan","None"], np.nan).fillna("") == g["batsman"])
             dism = g.groupby(["batsman","bowler"], as_index=False)["dismiss_flag"].sum().rename(columns={"dismiss_flag":"Wkts"})
             pair = pair.merge(dism, on=["batsman","bowler"], how="left").fillna({"Wkts":0})
@@ -326,10 +444,10 @@ def show_u19_analytics():
                 pair["SR"] = np.where(pair["B"]>0, pair["R"]*100/pair["B"], 0.0)
                 pair["Dot%"] = np.where(pair["B"]>0, pair["Dots"]*100/pair["B"], 0.0)
                 show = pair.sort_values(["R","SR"], ascending=[False, False]).head(30)
-                st.dataframe(show.rename(columns={"batsman":"Batsman","bowler":"Bowler"}),
-                             use_container_width=True)
+                show = show.rename(columns={"batsman":"Batsman","bowler":"Bowler"})
+                st.markdown(_html_table(show), unsafe_allow_html=True)
 
-        # ---- Batter vs Bowling Action ----
+        # Batter vs Bowling Action
         with mu_tabs[1]:
             if "bowling_action" not in dsel.columns:
                 st.info("No bowling_action column found.")
@@ -340,7 +458,6 @@ def show_u19_analytics():
                          .agg(R=("batsman_runs","sum"),
                               B=("legal_ball","sum"),
                               Dots=("batsman_runs", lambda s: int((s==0).sum()))))
-                # dismissals vs action (count where batter dismissed)
                 a["dismiss_flag"] = a["player_dismissed"].replace(["","nan","None"], np.nan).notna()
                 dism2 = a.groupby(["batsman","bowling_action"], as_index=False)["dismiss_flag"].sum().rename(columns={"dismiss_flag":"Wkts"})
                 act = act.merge(dism2, on=["batsman","bowling_action"], how="left").fillna({"Wkts":0})
@@ -350,17 +467,16 @@ def show_u19_analytics():
                     act["SR"] = np.where(act["B"]>0, act["R"]*100/act["B"], 0.0)
                     act["Dot%"] = np.where(act["B"]>0, act["Dots"]*100/act["B"], 0.0)
                     show = act.sort_values(["R","SR"], ascending=[False, False]).head(30)
-                    st.dataframe(show.rename(columns={"batsman":"Batsman","bowling_action":"Action"}),
-                                 use_container_width=True)
+                    show = show.rename(columns={"batsman":"Batsman","bowling_action":"Action"})
+                    st.markdown(_html_table(show), unsafe_allow_html=True)
 
-        # ---- Bowler vs Batting Style (RHB/LHB) ----
+        # Bowler vs Batting Style (RHB/LHB)
         with mu_tabs[2]:
             if "batting_style" not in dsel.columns:
                 st.info("No batting_style column found.")
             else:
                 b = dsel.copy()
                 b["legal_ball"] = b["is_legal"]
-                # Only keep RHB/LHB tokens
                 b["bat_style"] = b["batting_style"].str.upper().str.extract(r"(RHB|LHB)")[0].fillna("UNK")
                 vs_style = (b.groupby(["bowler","bat_style"], as_index=False)
                               .agg(B=("legal_ball","sum"),
@@ -374,48 +490,36 @@ def show_u19_analytics():
                     vs_style["Econ"] = np.where(vs_style["O"]>0, vs_style["R"]/vs_style["O"], 0.0)
                     vs_style["Dot%"] = np.where(vs_style["B"]>0, vs_style["Dots"]*100/vs_style["B"], 0.0)
                     vs_style["SR(balls/w)"] = np.where(vs_style["W"]>0, vs_style["B"]/vs_style["W"], np.nan)
-                    st.dataframe(vs_style.rename(columns={"bowler":"Bowler","bat_style":"Vs Style"}),
-                                 use_container_width=True)
+                    show = vs_style.rename(columns={"bowler":"Bowler","bat_style":"Vs Style"})
+                    st.markdown(_html_table(show), unsafe_allow_html=True)
 
-    # --------------------- Analyst Insights ---------------------
+    # ============== Analyst Insights ==============
+    st.markdown("<h4 class='tb-h4'>🧠 Analyst Insights</h4>", unsafe_allow_html=True)
     bullets = []
     try:
-        pp_sr = float(phase.loc[phase["phase"]=="Powerplay (0–5)","SR"].values[0])
-        bullets.append(("Powerplay SR", pp_sr))
-    except Exception:
-        pass
+        pp_sr = float(phase.loc[phase["phase"]=="Powerplay (0–5)","SR"].values[0]); bullets.append(f"Powerplay SR: <b>{pp_sr:.1f}</b>")
+    except Exception: pass
     try:
-        mid_sr = float(phase.loc[phase["phase"]=="Middle (6–14)","SR"].values[0])
-        bullets.append(("Middle SR", mid_sr))
-    except Exception:
-        pass
+        mid_sr = float(phase.loc[phase["phase"]=="Middle (6–14)","SR"].values[0]); bullets.append(f"Middle SR: <b>{mid_sr:.1f}</b>")
+    except Exception: pass
     try:
-        death_sr = float(phase.loc[phase["phase"]=="Death (15–19)","SR"].values[0])
-        bullets.append(("Death SR", death_sr))
-    except Exception:
-        pass
+        death_sr = float(phase.loc[phase["phase"]=="Death (15–19)","SR"].values[0]); bullets.append(f"Death SR: <b>{death_sr:.1f}</b>")
+    except Exception: pass
 
-    insight_lines = []
-    for label, val in bullets:
-        status = "✅ good" if (label != "Death SR" and val >= 85) or (label=="Powerplay SR" and val>=100) else "⚠️ low"
-        insight_lines.append(f"{label}: <b>{val:.1f}</b> ({status})")
-
+    items = (
+        ['Keep middle-overs Dot% under <b>35%</b> to sustain RR.',
+         'Use action match-ups to unlock boundary options.',
+         'Exploit highest-run bowler type from Pace/Spin summary.']
+        + ([' • '.join(bullets)] if bullets else [])
+    )
     st.markdown(
-        f"""
-        <div class='tb-card'>
-          <h4 class='tb-h4'>🧠 Analyst Insights</h4>
-          <ul class='tb-mute' style='line-height:1.7'>
-            <li>Keep middle-overs Dot% under <b>35%</b> to sustain RR.</li>
-            <li>Target the weaker bowling actions from Match-ups for boundary options.</li>
-            <li>{' • '.join(insight_lines) if insight_lines else 'Insights appear after valid selections.'}</li>
-          </ul>
-        </div>
-        """,
-        unsafe_allow_html=True,
+        "<div class='tb-card tb-mute' style='line-height:1.7'><ul><li>" +
+        "</li><li>".join(items) + "</li></ul></div>",
+        unsafe_allow_html=True
     )
 
     st.markdown(
-        f"<div class='tb-mute' style='text-align:center; margin-top:12px;'>"
-        f"Powered by <span style='color:{GOLD}; font-weight:600;'>Talking Bat Analytics</span> © 2025</div>",
-        unsafe_allow_html=True,
+        f"<div class='tb-mute' style='text-align:center; margin-top:8px;'>"
+        f"Powered by <b style='color:{PRIMARY};'>Talking Bat Analytics</b> © 2025</div>",
+        unsafe_allow_html=True
     )
