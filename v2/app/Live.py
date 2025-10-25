@@ -1,25 +1,43 @@
-import streamlit as st, pandas as pd
-from utils import api_get
+import streamlit as st
+from utils import api_get, GOLD
 
 def show_live():
-    st.subheader("🔴 Live Matches")
+    st.markdown(f"<h3 style='color:{GOLD};'>🔴 Live Matches</h3>", unsafe_allow_html=True)
+    
     try:
-        data = api_get("/currentMatches", {"offset": 0})
+        data = api_get("/currentMatches")
         matches = data.get("data", [])
+
         if not matches:
-            st.info("No live matches right now.")
+            st.info("No live matches at the moment.")
             return
-        rows = []
+
         for m in matches:
-            tinfo = m.get("teamInfo", [{}, {}])
-            rows.append({
-                "Match ID": m.get("id"),
-                "Teams": f"{tinfo[0].get('name','?')} vs {tinfo[1].get('name','?')}",
-                "Status": m.get("status"),
-                "Venue": m.get("venue"),
-                "Type": (m.get("matchType") or "").upper(),
-                "Series": m.get("series"),
-            })
-        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+            st.markdown("---")
+            teams = f"{m.get('teamInfo', [{}])[0].get('name', '')} vs {m.get('teamInfo', [{}])[-1].get('name', '')}"
+            st.markdown(f"### 🏟 {teams}")
+
+            # Status and Venue
+            st.write(f"📍 **Venue:** {m.get('venue', 'N/A')}")
+            st.write(f"🕒 **Status:** {m.get('status', 'No update')}")
+
+            # Live Score Details
+            score_data = m.get('score', [])
+            if score_data:
+                for s in score_data:
+                    team = s.get("inning", "")
+                    runs = s.get("r", "")
+                    wickets = s.get("w", "")
+                    overs = s.get("o", "")
+                    st.markdown(f"**{team}:** {runs}/{wickets} ({overs} ov)")
+            else:
+                st.warning("No score data available yet.")
+
+            # Additional Info
+            if m.get("tossWinner"):
+                st.write(f"🪙 **Toss:** {m['tossWinner']} won the toss")
+            if m.get("matchType"):
+                st.write(f"🏏 **Format:** {m['matchType'].upper()}")
+
     except Exception as e:
-        st.error(f"API Error: {e}")
+        st.error(f"⚠️ Unable to fetch live matches: {e}")
