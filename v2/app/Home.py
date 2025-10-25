@@ -3,26 +3,16 @@ from utils import auto_refresh, header
 
 st.set_page_config(page_title="Talking Bat", page_icon="🏏", layout="wide")
 auto_refresh()
+header()
 
-# ---- Session-based page navigation ----
+# ---- Page logic ----
 if "page" not in st.session_state:
     st.session_state.page = "home"
 
-def set_page(p):
-    st.session_state.page = p
+def set_page(p): st.session_state.page = p
+page = st.session_state.page
 
-# ---- Header ----
-st.markdown(f"""
-    <div class='tb-header'>
-      <img class='tb-logo' src='talkingbat_logo.png' alt='Talking Bat'>
-      <div class='tb-title'>Talking Bat</div>
-      <div class='tb-nav'>
-        <button onclick="window.location.href='/'" style='display:none;'></button>
-      </div>
-    </div>
-""", unsafe_allow_html=True)
-
-# ---- Buttons ----
+# ---- Navigation ----
 c1, c2, c3, c4 = st.columns(4)
 with c1:
     if st.button("🏏 Live"): set_page("live")
@@ -33,9 +23,7 @@ with c3:
 with c4:
     if st.button("📋 Scorecard"): set_page("scorecard")
 
-# ---- Page loader ----
-page = st.session_state.page
-
+# ---- Routing ----
 if page == "live":
     from Live import show_live
     show_live()
@@ -49,8 +37,17 @@ elif page == "scorecard":
     from Scorecard import show_scorecard
     show_scorecard()
 else:
-    st.subheader("Welcome")
-    st.write("This is **Talking Bat Cricket Agent v2 (White & Gold Edition)** — mobile-friendly live cricket app.")
-    st.info("Use the buttons above to explore live matches, fixtures, results, and scorecards.")
+    st.markdown(
+        """
+        <div class='tb-card'>
+        <h3>Welcome to <span style='color:#D4AF37;'>Talking Bat Pro Analytics</span></h3>
+        <p>This platform combines <b>live cricket data</b> and <b>Talking Bat performance analytics</b> into one professional dashboard.</p>
+        <ul>
+          <li>🏏 Monitor live scores with real-time updates</li>
+          <li>📊 Analyze team & player trends</li>
+          <li>🤖 Generate AI insights and scouting summaries</li>
+        </ul>
+        </div>
+        """, unsafe_allow_html=True)
 
-st.markdown("<div class='tb-footer'>Powered by Talking Bat © 2025 | All Rights Reserved</div>", unsafe_allow_html=True)
+st.markdown("<div class='tb-footer'>Powered by Talking Bat Analytics © 2025 | All Rights Reserved</div>", unsafe_allow_html=True)
