@@ -5,19 +5,33 @@ from utils import auto_refresh, header
 # ⚙️ PAGE CONFIGURATION
 # =======================================
 st.set_page_config(page_title="Talking Bat", page_icon="🏏", layout="wide")
-auto_refresh()
-header()
 
 # =======================================
-# 🧭 SESSION STATE NAVIGATION
+# 🧭 SESSION STATE SETUP
 # =======================================
 if "page" not in st.session_state:
     st.session_state.page = "home"
+if "auto_refresh_on" not in st.session_state:
+    st.session_state.auto_refresh_on = True  # default ON
 
 def set_page(p):
     st.session_state.page = p
 
 page = st.session_state.page
+
+# =======================================
+# 🎛️ AUTO-REFRESH TOGGLE (top-right)
+# =======================================
+col1, col2 = st.columns([0.8, 0.2])
+with col1:
+    header()
+with col2:
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.session_state.auto_refresh_on = st.toggle("🔁 Auto-Refresh", value=st.session_state.auto_refresh_on)
+
+# Enable auto-refresh only on Live/Fixtures pages and only if toggle is ON
+if st.session_state.auto_refresh_on and page in ["live", "fixtures"]:
+    auto_refresh()
 
 # =======================================
 # 🏠 MAIN NAVIGATION BUTTONS
@@ -61,14 +75,10 @@ elif page == "scorecard":
     show_scorecard()
 
 elif page == "u19":
-    # ✅ Correct import for U19 Analytics
     from U19_Analytics import show_u19_analytics
     show_u19_analytics()
 
 else:
-    # ===========================
-    # 🏏 WELCOME PAGE CONTENT
-    # ===========================
     st.markdown(
         """
         <div style='text-align:center; padding:25px;'>
