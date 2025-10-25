@@ -1,21 +1,19 @@
 import streamlit as st
 from datetime import datetime, timedelta
-from utils import api_get, GOLD
+from utils import api_get, GOLD, NAVY
 
 def show_live():
     st.markdown(f"<h3 style='color:{GOLD};'>🔴 Live & Recent Matches</h3>", unsafe_allow_html=True)
 
     try:
-        today = datetime.utcnow().date()
-        yesterday = today - timedelta(days=1)
-
         data = api_get("/matches", {"offset": "0"})
         matches = data.get("data", [])
-
         if not matches:
-            st.info("No matches available from API.")
+            st.info("No match data found from API.")
             return
 
+        today = datetime.utcnow().date()
+        yesterday = today - timedelta(days=1)
         filtered = []
         for m in matches:
             try:
@@ -29,9 +27,25 @@ def show_live():
                 continue
 
         if not filtered:
-            st.info("No live or recent matches today.")
+            st.info("No live or recent matches available today.")
             return
 
+        # ---------- GOLD TICKER BAR ----------
+        ticker_text = " | ".join([
+            f"{m.get('teams', [''])[0]} vs {m.get('teams', ['',''])[1]} – {m.get('status', '')}"
+            for m in filtered
+        ])
+        st.markdown(f"""
+        <div style='background:{GOLD};color:{NAVY};
+                    padding:6px 0;border-radius:6px;
+                    font-weight:600;white-space:nowrap;
+                    overflow:hidden;'>
+            <marquee behavior="scroll" direction="left" scrollamount="6">{ticker_text}</marquee>
+        </div><br>
+        """, unsafe_allow_html=True)
+        # -------------------------------------
+
+        # ---------- MATCH CARDS ----------
         for m in filtered:
             st.markdown("---")
             teams = f"{m.get('teamInfo', [{}])[0].get('name', '')} vs {m.get('teamInfo', [{}])[-1].get('name', '')}"
@@ -43,7 +57,6 @@ def show_live():
             if m.get("matchType"):
                 st.write(f"🏷 **Format:** {m['matchType'].upper()}")
 
-            # Live score summary
             score_data = m.get("score", [])
             if score_data:
                 for s in score_data:
@@ -53,50 +66,7 @@ def show_live():
                     overs = s.get("o", "")
                     st.markdown(f"**{team}:** {runs}/{wickets} ({overs} ov)")
             else:
-                st.caption("⏳ Waiting for score updates...")
-
-            # Expandable detailed scorecard
-            match_id = m.get("id", "")
-            if not match_id:
-                continue
-
-            with st.expander("📊 View Detailed Scorecard"):
-                try:
-                    details = api_get("/match_info", {"id": match_id})
-                    d = details.get("data", {})
-
-                    if not d:
-                        st.warning("No detailed scorecard yet.")
-                        continue
-
-                    # Batting summary
-                    batting = d.get("batting", [])
-                    bowling = d.get("bowling", [])
-
-                    if batting:
-                        st.markdown(f"<h5 style='color:{GOLD};margin-top:10px;'>Top Batters</h5>", unsafe_allow_html=True)
-                        for b in batting[:3]:
-                            name = b.get("batsman", "Unknown")
-                            runs = b.get("R", "0")
-                            balls = b.get("B", "0")
-                            fours = b.get("4s", "0")
-                            sixes = b.get("6s", "0")
-                            sr = b.get("SR", "0")
-                            st.write(f"🏏 **{name}** — {runs} ({balls}) 4s:{fours} 6s:{sixes} SR:{sr}")
-
-                    if bowling:
-                        st.markdown(f"<h5 style='color:{GOLD};margin-top:10px;'>Top Bowlers</h5>", unsafe_allow_html=True)
-                        for bow in bowling[:3]:
-                            name = bow.get("bowler", "Unknown")
-                            overs = bow.get("O", "0")
-                            maidens = bow.get("M", "0")
-                            runs = bow.get("R", "0")
-                            wkts = bow.get("W", "0")
-                            econ = bow.get("Econ", "0")
-                            st.write(f"🎯 **{name}** — {wkts}/{runs} in {overs} overs (Econ {econ})")
-
-                except Exception as e:
-                    st.error(f"❌ Unable to load detailed data: {e}")
+                st.caption("⏳ Waiting for score updates…")
 
     except Exception as e:
-        st.error(f"⚠️ Error fetching matches: {e}")
+        st.error(f"⚠️ Unable to fetch live data: {e}")
