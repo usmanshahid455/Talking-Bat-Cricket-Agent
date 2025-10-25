@@ -1,16 +1,16 @@
 import streamlit as st
 from utils import auto_refresh, header
 
-# ==============================
+# =======================================
 # ⚙️ PAGE CONFIGURATION
-# ==============================
+# =======================================
 st.set_page_config(page_title="Talking Bat", page_icon="🏏", layout="wide")
 auto_refresh()
 header()
 
-# ==============================
+# =======================================
 # 🧭 SESSION STATE NAVIGATION
-# ==============================
+# =======================================
 if "page" not in st.session_state:
     st.session_state.page = "home"
 
@@ -19,9 +19,9 @@ def set_page(p):
 
 page = st.session_state.page
 
-# ==============================
+# =======================================
 # 🏠 MAIN NAVIGATION BUTTONS
-# ==============================
+# =======================================
 st.markdown("<br>", unsafe_allow_html=True)
 c1, c2, c3, c4, c5 = st.columns(5)
 
@@ -41,30 +41,34 @@ with c5:
     if st.button("📊 U-19 Analytics"):
         set_page("u19")
 
-# ==============================
+# =======================================
 # 📄 PAGE ROUTING
-# ==============================
+# =======================================
 if page == "live":
-    from app.Live import show_live
+    from Live import show_live
     show_live()
 
 elif page == "fixtures":
-    from app.Fixtures import show_fixtures
+    from Fixtures import show_fixtures
     show_fixtures()
 
 elif page == "results":
-    from app.Results import show_results
+    from Results import show_results
     show_results()
 
 elif page == "scorecard":
-    from app.Scorecard import show_scorecard
+    from Scorecard import show_scorecard
     show_scorecard()
 
 elif page == "u19":
-    from app.U19_Analytics import show_u19_analytics
+    # ✅ Correct import for U19 Analytics
+    from U19_Analytics import show_u19_analytics
     show_u19_analytics()
 
 else:
+    # ===========================
+    # 🏏 WELCOME PAGE CONTENT
+    # ===========================
     st.markdown(
         """
         <div style='text-align:center; padding:25px;'>
@@ -85,9 +89,9 @@ else:
         unsafe_allow_html=True,
     )
 
-# ==============================
+# =======================================
 # ⚓ FOOTER
-# ==============================
+# =======================================
 st.markdown(
     """
     <div class='tb-footer' style='text-align:center; color:#777; margin-top:40px;
